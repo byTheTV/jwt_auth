@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
+	"golang.org/x/crypto/bcrypt"
 )
 
 type CustomClaims struct {
@@ -56,6 +57,10 @@ func GenerateRefreshToken() (string, error) {
 		return "", err
 	}
 	return base64.URLEncoding.EncodeToString(b), nil
+}
+
+func CompareRefreshToken(hashedToken, plainToken string) error{
+	return bcrypt.CompareHashAndPassword([]byte(hashedToken), []byte(plainToken))
 }
 
 func generateJTI() string {

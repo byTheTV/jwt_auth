@@ -45,3 +45,59 @@ func (h *AuthHandler) IssueTokens(c *gin.Context) {
 		"refresh_token": refreshToken,
 	})
 }
+
+func (h *AuthHandler) RefreshTokens(c *gin.Context) {
+	accessTokenString := c.GetHeader("Authorization")
+	if accessTokenString != "" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "missing access token"})
+		return
+	}
+	var req struct {
+		RefreshToken string `json:"refresh_token" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid request"})
+		return
+	}
+	claims, err := token.ParseAccessToken(accessTokenString, h.secret)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid access token"})
+		return
+	}
+	storedToken, err := h.db.FindRefreshToken(claims.ID)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid refresh token"})
+		return
+	}
+	if storedToken.Used {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "refresh token already used"})
+		return
+	}
+
+	if err := token.CompareRefreshToken(storedToken.RefreshTokenHash, req.RefreshToken); err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid refresh token"})
+		return
+	}
+
+	newAccessToken, newJTI, err := token.GenerateAccessToken(claims.UserID, h.secret)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to generate new access token"})
+		return
+	}
+
+	newRefreshToken, err := token.GenerateRefreshToken()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to generate refresh token"})
+		return
+	}
+
+	if err := h.db.UpdateRefreshTokens(storedToken.ID, newJTI, newRefreshToken); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update tokens"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"access_token":  newAccessToken,
+		"refresh_token": newRefreshToken,
+	})
+}

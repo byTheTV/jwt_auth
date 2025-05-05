@@ -24,6 +24,7 @@ func main() {
 	authHandler := handlers.NewAuthHandler(db, cfg.JWT.Secret)
 	
 	router.GET("/auth/token", authHandler.IssueTokens)
-
+	router.POST("/auth/refresh", authHandler.RefreshTokens)
+	
 	log.Fatal(router.Run(":" + cfg.Server.Port))
 }
