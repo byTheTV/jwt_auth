@@ -1,1 +1,4 @@
 .git
+config-docker.yaml
+Dockerfile
+docker-compose.yaml

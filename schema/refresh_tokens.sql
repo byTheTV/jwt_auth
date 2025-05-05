@@ -1,9 +1,10 @@
 CREATE TABLE refresh_tokens (
-    id UUID PRIMARY KEY,
-    user_id TEXT NOT NULL,
-    access_token_jti TEXT UNIQUE NOT NULL,
+    id SERIAL PRIMARY KEY,
+    user_id UUID NOT NULL,
+    access_token_jti TEXT NOT NULL,
     refresh_token_hash TEXT NOT NULL,
-    created_at TIMESTAMPTZ NOT NULL,
-    expires_at TIMESTAMPTZ NOT NULL,
-    used BOOLEAN NOT NULL DEFAULT FALSE
+    ip_address INET NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    used BOOLEAN DEFAULT FALSE
 );

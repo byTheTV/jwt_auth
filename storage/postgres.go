@@ -4,6 +4,7 @@ import (
 	"auth-service/config"
 	"database/sql"
 	"fmt"
+	"log"
 	"time"
 
 	_ "github.com/lib/pq"
@@ -11,9 +12,9 @@ import (
 )
 
 type Storage interface {
-	SaveRefreshToken(userID, jti, refreshToken string) error
+	SaveRefreshToken(userID, jti, refreshToken, ip string) error
 	FindRefreshToken(jti string) (*RefreshToken, error)
-	UpdateRefreshTokens(oldJTI, newJTI, newRefreshToken string) error
+	UpdateRefreshTokens(oldJTI, newJTI, newRefreshToken, ip string) error
 }
 
 type PostgresDB struct {
@@ -25,13 +26,23 @@ type RefreshToken struct {
 	UserID           string
 	AccessTokenJTI   string
 	RefreshTokenHash string
+	IP               string
 	CreatedAt        time.Time
 	ExpiresAT        time.Time
 	Used             bool
 }
 
 func NewPostgresDB(cfg config.PostgresConfig) (*PostgresDB, error) {
-	connStr := fmt.Sprintf("host=%s, port=%s, user=%s, password=%s, dbname=%s", cfg.Host, cfg.Port, cfg.User, cfg.Password, cfg.DBName)
+	connStr := fmt.Sprintf(
+		"host=%s port=%s user=%s password=%s dbname=%s sslmode=disable",
+		cfg.Host,
+		cfg.Port,
+		cfg.User,
+		cfg.Password,
+		cfg.DBName,
+	)
+
+	log.Println("Connecting to PostgreSQL with:", connStr)
 
 	db, err := sql.Open("postgres", connStr)
 	if err != nil {
@@ -45,14 +56,15 @@ func NewPostgresDB(cfg config.PostgresConfig) (*PostgresDB, error) {
 	return &PostgresDB{db: db}, nil
 }
 
-func (p *PostgresDB) SaveRefreshToken(userID, jti, refreshToken string) error {
+func (p *PostgresDB) SaveRefreshToken(userID, jti, refreshToken, ip string) error {
 	hashedRefresh, err := bcrypt.GenerateFromPassword([]byte(refreshToken), bcrypt.DefaultCost)
 	if err != nil {
 		return err
 	}
+
 	_, err = p.db.Exec(
-		"INSERT INTO refresh_tokens (user_id, access_token_jti, refresh_token_hash, expires_at) VALUES ($1, $2, $3, $4)",
-		userID, jti, string(hashedRefresh), time.Now().Add(7*24*time.Hour),
+		"INSERT INTO refresh_tokens (user_id, access_token_jti, refresh_token_hash, ip_address, expires_at) VALUES ($1, $2, $3, $4, $5)",
+		userID, jti, string(hashedRefresh), ip, time.Now().Add(7*24*time.Hour),
 	)
 	return err
 }
@@ -85,7 +97,7 @@ func (p *PostgresDB) FindRefreshToken(jti string) (*RefreshToken, error) {
 	return &token, nil
 }
 
-func (p *PostgresDB) UpdateRefreshTokens(oldJTI, newJTI, newRefreshToken string) error {
+func (p *PostgresDB) UpdateRefreshTokens(oldJTI, newJTI, newRefreshToken, ip string) error {
 	tx, err := p.db.Begin()
 	if err != nil {
 		return err
@@ -97,7 +109,6 @@ func (p *PostgresDB) UpdateRefreshTokens(oldJTI, newJTI, newRefreshToken string)
 		return err
 	}
 
-	// Пометка о использовании старого токена
 	_, err = tx.Exec(
 		"UPDATE refresh_tokens SET used = true WHERE access_token_jti = $1",
 		oldJTI,
@@ -107,14 +118,14 @@ func (p *PostgresDB) UpdateRefreshTokens(oldJTI, newJTI, newRefreshToken string)
 		return err
 	}
 
-	// insert new one
 	_, err = tx.Exec(
-		"INSERT INTO refresh_tokens (user_id, access_token_jti, refresh_token_hash, expires_at) "+
-			"VALUES ((SELECT user_id FROM refresh_tokens WHERE access_token_jti = $1), $2, $3, $4)",
-		oldJTI, newJTI, string(hashedRefresh), time.Now().Add(7*24*time.Hour),
+		"INSERT INTO refresh_tokens (user_id, access_token_jti, refresh_token_hash, ip_address, expires_at) VALUES ((SELECT user_id FROM refresh_tokens WHERE access_token_jti = $1), $2, $3, $4, $5)",
+		oldJTI, newJTI, string(hashedRefresh), ip, time.Now().Add(7*24*time.Hour),
 	)
+
 	if err != nil {
 		tx.Rollback()
+		log.Printf("Failed to insert new refresh token: %v", err)
 		return err
 	}
 	return tx.Commit()
