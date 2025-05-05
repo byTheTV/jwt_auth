@@ -1,0 +1,9 @@
+curl -X GET "http://localhost:8080/auth/token?user_id=550e8400-e29b-41d4-a716-446655440000"
+
+curl -X POST "http://localhost:8080/auth/refresh" ^
+-H "Authorization: Bearer eyJhbGciOiJIUzUxMiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiNTUwZTg0MDAtZTI5Yi00MWQ0LWE3MTYtNDQ2NjU1NDQwMDAwIiwiaXAiOiI6OjEiLCJleHAiOjE3NDY0NTExNDAsImp0aSI6ImtWSWFWMjlZNDYySDZDeGw4QVJOekE9PSJ9.y7Vx-AeLSUnUYQdBjVEZ5qGcWDkVeu9wOp3Ex_KWi4OrDjJuZDE211N4PylfCvA53Ovl2l5F4gNSZYCmXCv1KA" ^
+-H "Content-Type: application/json" ^
+-d "{\"refresh_token\":\"wQR3SQosRDOsiPvrn0KX32QSsaiRLO66QZ72KDmaIgY=\"}"
+
+
+

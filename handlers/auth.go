@@ -5,6 +5,7 @@ import (
 	"auth-service/token"
 	"log"
 	"net/http"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 )
@@ -57,6 +58,14 @@ func (h *AuthHandler) RefreshTokens(c *gin.Context) {
 		return
 	}
 
+	// Извлекаем токен, убирая префикс "Bearer "
+	const bearerPrefix = "Bearer "
+	if !strings.HasPrefix(accessTokenString, bearerPrefix) {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid authorization header"})
+		return
+	}
+	tokenString := strings.TrimPrefix(accessTokenString, bearerPrefix)
+
 	var req struct {
 		RefreshToken string `json:"refresh_token" binding:"required"`
 	}
@@ -65,7 +74,7 @@ func (h *AuthHandler) RefreshTokens(c *gin.Context) {
 		return
 	}
 
-	claims, err := token.ParseAccessToken(accessTokenString, h.secret)
+	claims, err := token.ParseAccessToken(tokenString, h.secret)
 	if err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid access token"})
 		return
@@ -104,7 +113,7 @@ func (h *AuthHandler) RefreshTokens(c *gin.Context) {
 		return
 	}
 
-	if err := h.db.UpdateRefreshTokens(storedToken.ID, newJTI, newRefreshToken, currentIP); err != nil {
+	if err := h.db.UpdateRefreshTokens(storedToken.AccessTokenJTI, newJTI, newRefreshToken, currentIP); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update tokens"})
 		return
 	}
